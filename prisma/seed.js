@@ -1,7 +1,7 @@
-const { STATUS_DATA, JOB_SOURCES } = require("../src/lib/data/seedData");
+import { STATUS_DATA, JOB_SOURCES } from "../src/lib/data/seedData";
 
-const { PrismaClient } = require("@prisma/client");
-const bcrypt = require("bcryptjs");
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 

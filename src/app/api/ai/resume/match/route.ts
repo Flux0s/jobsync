@@ -12,9 +12,9 @@ import { JobResponse } from "@/models/job.model";
 
 export const POST = async (req: NextRequest, res: NextApiResponse) => {
   const session = await auth();
-  const userId = session?.accessToken.sub;
+  const userId = session?.user?.id;
 
-  if (!session || !session.user) {
+  if (!session || !userId) {
     return res.status(401).json({ message: "Not Authenticated" });
   }
   const { resumeId, jobId, selectedModel } = (await req.json()) as {

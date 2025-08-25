@@ -56,8 +56,7 @@ ENV USER_EMAIL=admin@example.com
 ENV USER_PASSWORD=password123
 # Refer to readme to generate auth secret
 ENV AUTH_SECRET=Cft42eLmgapfLoot7ByiCL9ToNfbqZ4xaaMuOJsbm+9u
-ENV NEXTAUTH_URL: http://localhost:3000
-ENV AUTH_TRUST_HOST: http://localhost:3000
+ENV AUTH_TRUST_HOST=true
 ENV OLLAMA_BASE_URL=http://host.docker.internal:11434
 ENV OPENAI_API_KEY=sk-xxx
 RUN addgroup --system --gid 1001 nodejs && \
@@ -88,4 +87,4 @@ EXPOSE 3000
 ENV PORT 3000
 
 # Start the jobsync application
-CMD npx prisma migrate deploy && npm run seed && node server.js
+CMD npx prisma migrate deploy && node server.js

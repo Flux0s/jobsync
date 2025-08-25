@@ -49,15 +49,22 @@ export const getResumeReviewByOllama = async (
     format: "json",
   });
 
-  const stream = await model
-    .pipe(new StringOutputParser())
-    .stream(inputMessage);
+  const response = await model.stream([{ role: 'user', content: inputMessage }]);
   const encoder = new TextEncoder();
 
   return new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        controller.enqueue(encoder.encode(chunk));
+      for await (const chunk of response) {
+        if (typeof chunk.content === 'string') {
+          controller.enqueue(encoder.encode(chunk.content));
+        } else if (Array.isArray(chunk.content)) {
+          // Handle array content by joining all text elements
+          const textContent = chunk.content
+            .filter((item: any) => item.type === 'text')
+            .map((item: any) => item.text)
+            .join('');
+          controller.enqueue(encoder.encode(textContent));
+        }
       }
       controller.close();
     },
@@ -101,18 +108,25 @@ export const getResumeReviewByOpenAi = async (
     temperature: 0,
     maxConcurrency: 1,
     maxTokens: 3000,
+    streaming: true,
   });
 
-  const stream = await model
-    .pipe(new StringOutputParser())
-    .stream(inputMessage);
-
+  const response = await model.stream([{ role: 'user', content: inputMessage }]);
   const encoder = new TextEncoder();
-
+  
   return new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        controller.enqueue(encoder.encode(chunk));
+      for await (const chunk of response) {
+        if (typeof chunk.content === 'string') {
+          controller.enqueue(encoder.encode(chunk.content));
+        } else if (Array.isArray(chunk.content)) {
+          // Handle array content by joining all text elements
+          const textContent = chunk.content
+            .filter((item: any) => item.type === 'text')
+            .map((item: any) => item.text)
+            .join('');
+          controller.enqueue(encoder.encode(textContent));
+        }
       }
       controller.close();
     },
@@ -196,15 +210,22 @@ export const getJobMatchByOllama = async (
     numCtx: 3000,
   });
 
-  const stream = await model
-    .pipe(new StringOutputParser())
-    .stream(inputMessage);
+  const response = await model.stream([{ role: 'user', content: inputMessage }]);
   const encoder = new TextEncoder();
 
   return new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        controller.enqueue(encoder.encode(chunk));
+      for await (const chunk of response) {
+        if (typeof chunk.content === 'string') {
+          controller.enqueue(encoder.encode(chunk.content));
+        } else if (Array.isArray(chunk.content)) {
+          // Handle array content by joining all text elements
+          const textContent = chunk.content
+            .filter((item: any) => item.type === 'text')
+            .map((item: any) => item.text)
+            .join('');
+          controller.enqueue(encoder.encode(textContent));
+        }
       }
       controller.close();
     },
@@ -285,17 +306,25 @@ export const getJobMatchByOpenAi = async (
     temperature: 0,
     maxConcurrency: 1,
     maxTokens: 3000,
+    streaming: true,
   });
 
-  const stream = await model
-    .pipe(new StringOutputParser())
-    .stream(inputMessage);
+  const response = await model.stream([{ role: 'user', content: inputMessage }]);
   const encoder = new TextEncoder();
 
   return new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        controller.enqueue(encoder.encode(chunk));
+      for await (const chunk of response) {
+        if (typeof chunk.content === 'string') {
+          controller.enqueue(encoder.encode(chunk.content));
+        } else if (Array.isArray(chunk.content)) {
+          // Handle array content by joining all text elements
+          const textContent = chunk.content
+            .filter((item: any) => item.type === 'text')
+            .map((item: any) => item.text)
+            .join('');
+          controller.enqueue(encoder.encode(textContent));
+        }
       }
       controller.close();
     },

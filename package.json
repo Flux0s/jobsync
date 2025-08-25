@@ -1,9 +1,17 @@
 {
   "name": "jobsync",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^23.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Flux0s/jobsync.git"
+  },
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 5001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -13,8 +21,9 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.10.0",
     "@hookform/resolvers": "^3.4.2",
-    "@langchain/community": "^0.2.18",
+    "@langchain/community": "^0.3.53",
     "@langchain/openai": "^0.2.1",
     "@nivo/bar": "^0.87.0",
     "@nivo/calendar": "^0.87.0",
@@ -36,6 +45,7 @@
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-tooltip": "^1.0.7",
+    "@t3-oss/env-nextjs": "^0.13.8",
     "@tiptap/pm": "^2.4.0",
     "@tiptap/react": "^2.4.0",
     "@tiptap/starter-kit": "^2.4.0",

@@ -4,14 +4,15 @@ import { CurrentUser } from "@/models/user.model";
 
 export const getCurrentUser = async () => {
   const session = await auth();
-  if (!session?.accessToken) return null;
-  const { sub, name, email, iat, exp } = session?.accessToken;
+  if (!session?.user) return null;
+  
   const user: CurrentUser = {
-    id: sub,
-    name,
-    email,
-    iat,
-    exp,
+    id: session.user.id,
+    name: session.user.name || '',
+    email: session.user.email || '',
+    // These might not be available in the session, set to undefined if not needed
+    iat: undefined,
+    exp: undefined,
   };
   return user;
 };

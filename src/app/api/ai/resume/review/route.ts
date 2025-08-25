@@ -12,7 +12,7 @@ import { AiModel, AiProvider } from "@/models/ai.model";
 
 export const POST = async (req: NextRequest, res: NextApiResponse) => {
   const session = await auth();
-  const userId = session?.accessToken.sub;
+  const userId = session?.user?.id;
 
   if (!session || !session.user) {
     return res.status(401).json({ message: "Not Authenticated" });

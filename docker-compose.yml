@@ -1,4 +1,23 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:16
+    container_name: jobsync_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jobsync
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   app:
     container_name: jobsync_app
     build:
@@ -8,8 +27,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NODE_ENV: production
-      DATABASE_URL: file:/data/dev.db
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/jobsync?schema=public
       # Change your initial username and password here
       USER_EMAIL: admin@example.com
       USER_PASSWORD: password123
@@ -17,5 +36,9 @@ services:
       AUTH_SECRET: Cft42eLmgapfLoot7ByiCL9ToNfbqZ4xaaMuOJsbm+9u
       NEXTAUTH_URL: http://localhost:3000
       AUTH_TRUST_HOST: http://localhost:3000
-    volumes:
-      - ./jobsyncdb/data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

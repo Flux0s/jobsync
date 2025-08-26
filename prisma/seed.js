@@ -1,4 +1,4 @@
-import { STATUS_DATA, JOB_SOURCES } from "../src/lib/data/seedData";
+import { STATUS_DATA, JOB_SOURCES } from "../src/lib/data/seedData.js";
 
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";

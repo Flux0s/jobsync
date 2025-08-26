@@ -20,7 +20,7 @@ const JOB_SOURCES = [
   { label: "Other", value: "other" },
 ];
 
-module.exports = {
+export {
   STATUS_DATA,
   JOB_SOURCES,
 };

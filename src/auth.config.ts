@@ -1,8 +1,11 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
+import LinkedinProvider from "next-auth/providers/linkedin";
+import { PrismaClient } from "@prisma/client";
+import { env } from "@/env";
 
-import db from "@/lib/db";
+const prisma = new PrismaClient();
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -30,11 +33,16 @@ declare module "next-auth" {
  *
  * @see https://next-auth.js.org/configuration/options
  */
-export const authConfig = {
+export const authConfig: NextAuthConfig = {
+  adapter: PrismaAdapter(prisma),
   providers: [
-    DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    // DiscordProvider({
+    //   clientId: process.env.DISCORD_CLIENT_ID,
+    //   clientSecret: process.env.DISCORD_CLIENT_SECRET,
+    // }),
+    LinkedinProvider({
+      clientId: env.LINKEDIN_CLIENT_ID,
+      clientSecret: env.LINKEDIN_CLIENT_SECRET,
     }),
     /**
      * ...add more providers here.
@@ -46,24 +54,33 @@ export const authConfig = {
      * @see https://next-auth.js.org/providers/github
      */
   ],
-  adapter: PrismaAdapter(db),
+  session: {
+    strategy: "jwt",
+  },
   callbacks: {
-    session: ({ session, user }) => ({
+    session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
-        id: user.id,
+        id: token.sub,
       },
     }),
+    jwt: async ({ token, user }) => {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
     authorized: ({ auth, request }) => {
-      // Get the pathname of the request
-      const path = request?.nextUrl?.pathname;
-
-      // Define public routes that don't require authentication
-      const isPublicRoute = ["/", "/api/auth/signin"].includes(path ?? "");
-
-      // Allow access to public routes, otherwise require a valid user session
-      return isPublicRoute || !!auth?.user;
+      const isLoggedIn = !!auth?.user;
+      const isOnDashboard = request.nextUrl?.pathname.startsWith('/dashboard');
+      
+      if (isOnDashboard) {
+        return isLoggedIn; // Redirect unauthenticated users to login page
+      }
+      
+      return true;
     },
   },
+  debug: process.env.NODE_ENV === 'development',
 } satisfies NextAuthConfig;

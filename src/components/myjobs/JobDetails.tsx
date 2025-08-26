@@ -6,6 +6,7 @@ import { JobResponse } from "@/models/job.model";
 import { TipTapContentViewer } from "../TipTapContentViewer";
 import {
   Card,
+  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,
@@ -18,10 +19,24 @@ import { AiJobMatchSection } from "../profile/AiJobMatchSection";
 import { useState } from "react";
 import { DownloadFileButton } from "../profile/DownloadFileButton";
 
-function JobDetails({ job }: { job: JobResponse }) {
+function JobDetails({ job }: { job: JobResponse | null }) {
+  // Always call hooks at the top level
   const [aiSectionOpen, setAiSectionOpen] = useState(false);
   const router = useRouter();
   const goBack = () => router.back();
+
+  if (!job) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>No Job Data</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>Unable to load job details. The job may have been deleted or you may not have permission to view it.</p>
+        </CardContent>
+      </Card>
+    );
+  }
   const getAiJobMatch = async () => {
     setAiSectionOpen(true);
   };
@@ -97,24 +112,27 @@ function JobDetails({ job }: { job: JobResponse }) {
           {job.jobUrl && (
             <div className="my-3 ml-4">
               <span className="font-semibold mr-2">Job URL:</span>
-              <a
-                href={formatUrl(job.jobUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {job.jobUrl}
-              </a>
+              {job.jobUrl && (
+                <a
+                  href={formatUrl(job.jobUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline break-all"
+                >
+                  {job.jobUrl}
+                </a>
+              )}
             </div>
           )}
           <div className="my-4 ml-4">
-            <TipTapContentViewer content={job?.description} />
+            <TipTapContentViewer content={job.description || ''} />
           </div>
           <CardFooter></CardFooter>
         </Card>
       )}
       {
         <AiJobMatchSection
-          jobId={job?.id}
+          jobId={job.id}
           aISectionOpen={aiSectionOpen}
           triggerChange={setAiSectionOpen}
         />

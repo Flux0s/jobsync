@@ -142,20 +142,21 @@ export async function* getJobsIterator(filter?: string, pageSize = 200) {
 
 export const getJobDetails = async (
   jobId: string
-): Promise<any | undefined> => {
+): Promise<{ job: any; success: boolean; message?: string }> => {
   try {
     if (!jobId) {
-      throw new Error("Please provide job id");
+      return { job: null, success: false, message: "Job ID is required" };
     }
-    const user = await getCurrentUser();
 
+    const user = await getCurrentUser();
     if (!user) {
-      throw new Error("Not authenticated");
+      return { job: null, success: false, message: "Not authenticated" };
     }
 
     const job = await prisma.job.findUnique({
       where: {
         id: jobId,
+        userId: user.id, // Ensure the job belongs to the current user
       },
       include: {
         JobSource: true,
@@ -170,10 +171,19 @@ export const getJobDetails = async (
         },
       },
     });
+
+    if (!job) {
+      return { job: null, success: false, message: "Job not found" };
+    }
+
     return { job, success: true };
   } catch (error) {
-    const msg = "Failed to fetch job details. ";
-    return handleError(error, msg);
+    console.error("Error in getJobDetails:", error);
+    return { 
+      job: null, 
+      success: false, 
+      message: error instanceof Error ? error.message : "An unexpected error occurred" 
+    };
   }
 };
 

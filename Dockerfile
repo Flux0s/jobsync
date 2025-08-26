@@ -27,7 +27,7 @@ COPY . .
 # Next.js collects completely anonymous telemetry data about general usage.
 # Learn more here: https://nextjs.org/telemetry
 ENV NEXT_TELEMETRY_DISABLED 1
-ENV DATABASE_URL=file:/data/dev.db
+ENV DATABASE_URL="postgresql://postgres:postgres@postgres:5432/jobsync"
 
 # Add the wait script to ensure the database is ready before running migrations
 # ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.9.0/wait /wait
@@ -51,11 +51,11 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED 1
 # Set environment variables
 ENV NODE_ENV=production
-ENV DATABASE_URL=file:./data/dev.db
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/jobsync"
 ENV USER_EMAIL=admin@example.com
 ENV USER_PASSWORD=password123
 # Refer to readme to generate auth secret
-ENV AUTH_SECRET=Cft42eLmgapfLoot7ByiCL9ToNfbqZ4xaaMuOJsbm+9u
+ENV AUTH_SECRET=something_secret
 ENV AUTH_TRUST_HOST=true
 ENV OLLAMA_BASE_URL=http://host.docker.internal:11434
 ENV OPENAI_API_KEY=sk-xxx

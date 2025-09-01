@@ -5,34 +5,6 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-async function seedUser() {
-  try {
-    const password = await bcrypt.hash(process.env.USER_PASSWORD, 10);
-    const email = process.env.USER_EMAIL;
-    // Check if the user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email,
-      },
-    });
-    if (!existingUser) {
-      await prisma.user.create({
-        data: {
-          email,
-          name: "Admin",
-          password,
-        },
-      });
-      console.log("Seeded new user: ", { email });
-    } else {
-      console.log("User already exists: ", { email });
-    }
-  } catch (error) {
-    console.error("Error seeding user: ", error);
-    throw error;
-  }
-}
-
 async function seedStatus() {
   try {
     const statuses = STATUS_DATA;
@@ -58,7 +30,7 @@ async function seedStatus() {
   }
 }
 
-async function seedJobSouces() {
+async function seedJobSources() {
   try {
     const sources = JOB_SOURCES;
     for (const source of sources) {
@@ -79,9 +51,8 @@ async function seedJobSouces() {
 }
 
 async function main() {
-  await seedUser();
   await seedStatus();
-  await seedJobSouces();
+  await seedJobSources();
 }
 
 main()

@@ -18,6 +18,8 @@ export const env = createEnv({
     LINKEDIN_CLIENT_ID: z.string(),
     LINKEDIN_CLIENT_SECRET: z.string(),
     NEXTAUTH_URL: z.string().url(),
+    OPENAI_API_KEY: z.string().optional(),
+    OLLAMA_BASE_URL: z.string().url().optional(),
   },
 
   /**
@@ -40,6 +42,8 @@ export const env = createEnv({
     LINKEDIN_CLIENT_ID: process.env.LINKEDIN_CLIENT_ID,
     LINKEDIN_CLIENT_SECRET: process.env.LINKEDIN_CLIENT_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

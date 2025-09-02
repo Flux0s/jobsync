@@ -545,7 +545,7 @@ export function AddJob({
                           <RadioGroup
                             name="type"
                             onValueChange={field.onChange}
-                            defaultValue={field.value}
+                            value={field.value}
                             className="flex space-y-1"
                           >
                             {Object.entries(JOB_TYPES).map(([key, value]) => (

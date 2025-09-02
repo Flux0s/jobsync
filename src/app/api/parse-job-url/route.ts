@@ -197,17 +197,52 @@ function parseJobContent(html: string, url: string): ParsedJobData {
     result.jobType = jobTypeMatch[0].toLowerCase().replace(/[^a-z]/g, '');
   }
   
-  // Extract job description (improved)
-  let descriptionMatch = html.match(/<div[^>]*(?:description|content|job-description)[^>]*>([\s\S]*?)<\/div>/i) ||
-                        html.match(/<section[^>]*(?:description|content)[^>]*>([\s\S]*?)<\/section>/i);
+  // Extract job description (improved with multiple patterns)
+  let descriptionMatch = null;
+  const descriptionPatterns = [
+    // LinkedIn patterns
+    /<div[^>]*class="[^"]*jobs-description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*jobs-box__html-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    // Indeed patterns
+    /<div[^>]*id="jobDescriptionText"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*class="[^"]*jobsearch-jobDescriptionText[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    // Glassdoor patterns
+    /<div[^>]*class="[^"]*job-description[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<div[^>]*data-test="job-description"[^>]*>([\s\S]*?)<\/div>/i,
+    // Generic patterns
+    /<div[^>]*(?:description|content|job-description|responsibilities|requirements)[^>]*>([\s\S]*?)<\/div>/i,
+    /<section[^>]*(?:description|content|job-description)[^>]*>([\s\S]*?)<\/section>/i,
+    /<article[^>]*(?:description|job-description)[^>]*>([\s\S]*?)<\/article>/i
+  ];
+
+  for (const pattern of descriptionPatterns) {
+    descriptionMatch = html.match(pattern);
+    if (descriptionMatch && descriptionMatch[1].length > 100) {
+      break;
+    }
+  }
+
   if (descriptionMatch) {
-    result.description = descriptionMatch[1]
+    let cleanDescription = descriptionMatch[1]
       .replace(/<script[\s\S]*?<\/script>/gi, '')
       .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+      .replace(/<aside[\s\S]*?<\/aside>/gi, '')
       .replace(/<[^>]*>/g, ' ')
       .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 1000);
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .trim();
+
+    // Only use if we have substantial content
+    if (cleanDescription.length > 50) {
+      result.description = cleanDescription.substring(0, 2000); // Increased from 1000
+    }
   }
   
   // Calculate final confidence based on extracted fields

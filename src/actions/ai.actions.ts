@@ -388,50 +388,86 @@ export const parseJobWithAnythingLLM = async (
     // Get existing database values to help AI match against existing entries
     const existingValues = await getExistingDatabaseValues();
     
+    // Increase HTML content limit and focus on job description sections
+    const contentLimit = 15000; // Increased from 8000
+    let processedContent = htmlContent;
+    
+    // Try to extract and prioritize job description sections
+    const descriptionPatterns = [
+      /<div[^>]*(?:job-description|description|content|responsibilities|requirements)[^>]*>([\s\S]*?)<\/div>/gi,
+      /<section[^>]*(?:job-description|description|content)[^>]*>([\s\S]*?)<\/section>/gi,
+      /<article[^>]*(?:job-description|description)[^>]*>([\s\S]*?)<\/article>/gi,
+      /class="[^"]*(?:job-description|description|content)[^"]*"[^>]*>([\s\S]*?)(?:<\/div>|<\/section>|<\/article>)/gi
+    ];
+    
+    let jobDescriptionContent = '';
+    for (const pattern of descriptionPatterns) {
+      const matches = htmlContent.match(pattern);
+      if (matches && matches.length > 0) {
+        jobDescriptionContent = matches.join('\n\n');
+        break;
+      }
+    }
+    
+    // If we found job description content, prioritize it
+    if (jobDescriptionContent && jobDescriptionContent.length > 1000) {
+      processedContent = `${htmlContent.substring(0, 5000)}\n\nJOB DESCRIPTION SECTION:\n${jobDescriptionContent.substring(0, 8000)}`;
+    } else {
+      processedContent = htmlContent.substring(0, contentLimit);
+    }
+
     const prompt = `
-You are an expert job data extraction assistant. Extract structured job information from the provided HTML content.
+You are an expert job data extraction assistant. Your PRIMARY TASK is to extract comprehensive job descriptions from HTML content.
 
-IMPORTANT: When possible, match extracted values against these existing database entries to minimize duplicate entries:
+CRITICAL: The job description field is the MOST IMPORTANT field. You MUST extract detailed, comprehensive job information.
 
-EXISTING JOB TITLES (use exact match if possible):
-${existingValues.jobTitles.slice(0, 20).join(', ')}
+EXISTING DATABASE VALUES (match when possible):
+- Job Titles: ${existingValues.jobTitles.slice(0, 20).join(', ')}
+- Companies: ${existingValues.companies.slice(0, 20).join(', ')}
+- Locations: ${existingValues.locations.slice(0, 20).join(', ')}
+- Job Types: ${existingValues.jobTypes.join(', ')}
 
-EXISTING COMPANIES (use exact match if possible):
-${existingValues.companies.slice(0, 20).join(', ')}
-
-EXISTING LOCATIONS (use exact match if possible):
-${existingValues.locations.slice(0, 20).join(', ')}
-
-EXISTING JOB SOURCES (use exact match if possible):
-${existingValues.jobSources.join(', ')}
-
-EXISTING JOB TYPES (use exact match):
-${existingValues.jobTypes.join(', ')}
-
-EXISTING SALARY RANGES (use similar format if possible):
-${existingValues.salaryRanges.slice(0, 10).join(', ')}
-
-Extract the following information and return it as a JSON object:
+REQUIRED OUTPUT FORMAT (JSON only):
 {
-  "title": "job title (prefer existing match)",
-  "company": "company name (prefer existing match)",
-  "location": "job location (prefer existing match)",
-  "description": "summarized key points: responsibilities, requirements, benefits, company culture - max 500 chars",
-  "salary": "salary information if available (prefer existing format)",
-  "jobType": "job type (must use existing values or FT/PT/C)"
+  "title": "exact job title from the page",
+  "company": "exact company name",
+  "location": "job location",
+  "description": "COMPREHENSIVE job description - see rules below",
+  "salary": "salary if found or null",
+  "jobType": "FT/PT/C based on content"
 }
 
-Rules:
-1. PRIORITIZE matching existing database values to avoid duplicates
-2. For description: summarize key points that matter to job seekers (responsibilities, requirements, benefits, growth opportunities)
-3. Clean HTML tags and focus on actionable information
-4. For jobType: use existing values (${existingValues.jobTypes.join(', ')}) or default to FT/PT/C
-5. If information is not available, use null for that field
-6. Return only valid JSON, no additional text
+CRITICAL DESCRIPTION EXTRACTION RULES:
+1. NEVER use generic phrases like "See this and similar jobs on LinkedIn" or "Join a team that puts its People First"
+2. EXTRACT THE ACTUAL JOB CONTENT including:
+   - Specific job responsibilities and daily tasks
+   - Required technical skills and qualifications
+   - Preferred experience and certifications
+   - Education requirements
+   - Benefits and compensation details
+   - Company culture and work environment
+   - Growth opportunities and career development
+   - Remote work policies
+   - Team structure and reporting relationships
+
+3. SEARCH THE HTML FOR:
+   - Job description sections (class="job-description", "description", "content")
+   - Responsibilities sections
+   - Requirements sections
+   - Qualifications sections
+   - Benefits sections
+   - About the role sections
+
+4. COMBINE ALL RELEVANT SECTIONS into one comprehensive description
+5. MINIMUM 800 characters, TARGET 1200-1800 characters
+6. If you cannot find detailed job content, write "Detailed job description not available in the provided content"
+7. DO NOT include navigation text, ads, or "apply now" buttons
+
+EXAMPLE GOOD DESCRIPTION:
+"We are seeking a Senior Software Engineer to join our platform team. Key responsibilities include: designing and implementing scalable microservices, collaborating with product teams on feature development, mentoring junior developers, and maintaining CI/CD pipelines. Required skills: 5+ years Python/Java experience, AWS/Docker expertise, strong system design knowledge. We offer competitive salary, equity, comprehensive health benefits, flexible remote work, and professional development budget. You'll work in an agile environment with quarterly planning cycles and cross-functional collaboration."
 
 HTML Content:
-${htmlContent.substring(0, 8000)}
-`;
+${processedContent}`;
 
     const requestBody = {
       message: prompt,
@@ -454,6 +490,8 @@ ${htmlContent.substring(0, 8000)}
 
     console.log('AnythingLLM request to:', `${baseUrl}/api/v1/workspace/myworkspace/chat`);
     console.log('AnythingLLM request body size:', JSON.stringify(requestBody).length, 'characters');
+    console.log('AnythingLLM processed content preview:', processedContent.substring(0, 500) + '...');
+    console.log('AnythingLLM job description content found:', jobDescriptionContent ? jobDescriptionContent.substring(0, 300) + '...' : 'None detected');
     console.log('AnythingLLM response status:', response.status);
 
     if (!response.ok) {

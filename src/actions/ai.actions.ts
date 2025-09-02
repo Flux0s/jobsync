@@ -8,6 +8,7 @@ import {
 } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { Resume } from "@/models/profile.model";
+import prisma from "@/lib/db";
 import { JobResponse } from "@/models/job.model";
 import { convertJobToText, convertResumeToText } from "@/utils/ai.utils";
 
@@ -329,4 +330,189 @@ export const getJobMatchByOpenAi = async (
       controller.close();
     },
   });
+};
+
+const getExistingDatabaseValues = async () => {
+  try {
+    const [jobTitles, companies, locations, jobSources, jobs] = await Promise.all([
+      prisma.jobTitle.findMany({ select: { value: true }, take: 50 }),
+      prisma.company.findMany({ select: { value: true }, take: 50 }),
+      prisma.location.findMany({ select: { value: true }, take: 50 }),
+      prisma.jobSource.findMany({ select: { value: true }, take: 20 }),
+      prisma.job.findMany({ 
+        select: { jobType: true, salaryRange: true }, 
+        distinct: ['jobType', 'salaryRange'],
+        take: 100 
+      })
+    ]);
+
+    return {
+      jobTitles: jobTitles.map((jt: { value: string }) => jt.value),
+      companies: companies.map((c: { value: string }) => c.value),
+      locations: locations.map((l: { value: string }) => l.value),
+      jobSources: jobSources.map((js: { value: string }) => js.value),
+      jobTypes: Array.from(new Set(jobs.map((j: any) => j.jobType).filter(Boolean))),
+      salaryRanges: Array.from(new Set(jobs.map((j: any) => j.salaryRange).filter(Boolean)))
+    };
+  } catch (error) {
+    console.log('Failed to fetch existing database values:', error);
+    return {
+      jobTitles: [],
+      companies: [],
+      locations: [],
+      jobSources: [],
+      jobTypes: ['FT', 'PT', 'C'],
+      salaryRanges: []
+    };
+  }
+};
+
+export const parseJobWithAnythingLLM = async (
+  htmlContent: string,
+  url: string
+): Promise<{
+  title?: string;
+  company?: string;
+  location?: string;
+  description?: string;
+  salary?: string;
+  jobType?: string;
+  confidence: number;
+  source: string;
+  error?: string;
+}> => {
+  try {
+    const baseUrl = process.env.ANYTHINGLLM_BASE_URL || 'http://localhost:3001';
+    const apiKey = process.env.ANYTHINGLLM_API_KEY;
+    
+    // Get existing database values to help AI match against existing entries
+    const existingValues = await getExistingDatabaseValues();
+    
+    const prompt = `
+You are an expert job data extraction assistant. Extract structured job information from the provided HTML content.
+
+IMPORTANT: When possible, match extracted values against these existing database entries to minimize duplicate entries:
+
+EXISTING JOB TITLES (use exact match if possible):
+${existingValues.jobTitles.slice(0, 20).join(', ')}
+
+EXISTING COMPANIES (use exact match if possible):
+${existingValues.companies.slice(0, 20).join(', ')}
+
+EXISTING LOCATIONS (use exact match if possible):
+${existingValues.locations.slice(0, 20).join(', ')}
+
+EXISTING JOB SOURCES (use exact match if possible):
+${existingValues.jobSources.join(', ')}
+
+EXISTING JOB TYPES (use exact match):
+${existingValues.jobTypes.join(', ')}
+
+EXISTING SALARY RANGES (use similar format if possible):
+${existingValues.salaryRanges.slice(0, 10).join(', ')}
+
+Extract the following information and return it as a JSON object:
+{
+  "title": "job title (prefer existing match)",
+  "company": "company name (prefer existing match)",
+  "location": "job location (prefer existing match)",
+  "description": "summarized key points: responsibilities, requirements, benefits, company culture - max 500 chars",
+  "salary": "salary information if available (prefer existing format)",
+  "jobType": "job type (must use existing values or FT/PT/C)"
+}
+
+Rules:
+1. PRIORITIZE matching existing database values to avoid duplicates
+2. For description: summarize key points that matter to job seekers (responsibilities, requirements, benefits, growth opportunities)
+3. Clean HTML tags and focus on actionable information
+4. For jobType: use existing values (${existingValues.jobTypes.join(', ')}) or default to FT/PT/C
+5. If information is not available, use null for that field
+6. Return only valid JSON, no additional text
+
+HTML Content:
+${htmlContent.substring(0, 8000)}
+`;
+
+    const requestBody = {
+      message: prompt,
+      mode: "chat"
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const response = await fetch(`${baseUrl}/api/v1/workspace/myworkspace/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log('AnythingLLM request to:', `${baseUrl}/api/v1/workspace/myworkspace/chat`);
+    console.log('AnythingLLM request body size:', JSON.stringify(requestBody).length, 'characters');
+    console.log('AnythingLLM response status:', response.status);
+
+    if (!response.ok) {
+      throw new Error(`AnythingLLM API error: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    console.log('AnythingLLM full response:', JSON.stringify(result, null, 2));
+    
+    if (!result.textResponse) {
+      console.log('AnythingLLM result keys:', Object.keys(result));
+      throw new Error('No response from AnythingLLM');
+    }
+    
+    console.log('AnythingLLM textResponse:', result.textResponse);
+
+    // Parse the JSON response from the AI
+    let parsedData;
+    try {
+      // Extract JSON from the response text
+      const jsonMatch = result.textResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in AI response');
+      }
+    } catch (parseError) {
+      console.log('Failed to parse JSON from response:', result.textResponse);
+      throw new Error(`Failed to parse AI response: ${parseError}`);
+    }
+
+    // Calculate confidence based on extracted fields
+    const extractedFields = [
+      parsedData.title,
+      parsedData.company,
+      parsedData.location,
+      parsedData.description
+    ].filter(field => field && field !== null).length;
+    
+    const confidence = Math.min(0.95, 0.6 + (extractedFields * 0.08));
+
+    return {
+      title: parsedData.title || undefined,
+      company: parsedData.company || undefined,
+      location: parsedData.location || undefined,
+      description: parsedData.description || undefined,
+      salary: parsedData.salary || undefined,
+      jobType: parsedData.jobType || undefined,
+      confidence,
+      source: 'anythingllm',
+    };
+
+  } catch (error) {
+    console.error('AnythingLLM parsing error:', error);
+    return {
+      confidence: 0,
+      source: 'anythingllm-error',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 };

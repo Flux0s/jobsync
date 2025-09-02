@@ -3,6 +3,7 @@
 import { JobForm } from "@/models/job.model";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { useEffect } from "react";
 
 import { ControllerRenderProps } from "react-hook-form";
 import { Toggle } from "./ui/toggle";
@@ -41,6 +42,13 @@ const Tiptap = ({ field }: { field: ControllerRenderProps<any, any> }) => {
       field.onChange(editor.getHTML());
     },
   });
+
+  // Update editor content when field value changes externally (e.g., via setValue)
+  useEffect(() => {
+    if (editor && field.value !== editor.getHTML()) {
+      editor.commands.setContent(field.value || '');
+    }
+  }, [editor, field.value]);
 
   return (
     <div className="flex flex-col gap-2">

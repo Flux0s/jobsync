@@ -31,6 +31,8 @@ Job searching can be overwhelming, with numerous applications to track and deadl
 
 - **AI Assistant:** Leverage the power of AI to improve your resumes and cover letters. Get personalized job matching with scoring to identify the best opportunities tailored to your profile.
 
+- **AI-Powered Job Parsing:** Automatically extract job information from URLs using AnythingLLM integration, with intelligent fallback to HTML scraping for maximum compatibility.
+
 
 ## Free to Use and Self-Hosted
 JobSync Assistant is completely free to use and open source. It provides a powerful job search management tool at no cost and ensures that everyone has access to the resources they need. Additionally, JobSeeker Assistant is designed to be self-hosted, giving you full control over your data. By using Docker, you can easily set up and run JobSync Assistant on your own server, ensuring a secure and personalized experience.
@@ -123,6 +125,77 @@ You must add your valid API key in the docker file, also please make sure openai
 
 ```
 ENV OPENAI_API_KEY=sk-xxx
+```
+
+#### AnythingLLM Integration
+
+JobSync now supports AnythingLLM for AI-powered job parsing from URLs. This provides more accurate extraction of job information compared to traditional HTML scraping.
+
+##### Setup AnythingLLM
+
+1. **Install AnythingLLM using Docker:**
+   ```bash
+   docker run -d \
+     --name anythingllm \
+     -p 3001:3001 \
+     -v anythingllm_storage:/app/server/storage \
+     -v anythingllm_logs:/app/server/logs \
+     -e LLM_PROVIDER=ollama \
+     -e OLLAMA_BASE_PATH=http://host.docker.internal:11434 \
+     -e OLLAMA_MODEL_PREF=llama3.1 \
+     -e EMBEDDING_ENGINE=ollama \
+     -e EMBEDDING_BASE_PATH=http://host.docker.internal:11434 \
+     -e EMBEDDING_MODEL_PREF=nomic-embed-text \
+     mintplexlabs/anythingllm
+   ```
+
+2. **Configure JobSync Environment Variables:**
+   Add these variables to your `.env` file:
+   ```bash
+   # For Docker Compose (recommended):
+   ANYTHINGLLM_BASE_URL=http://anythingllm:3001
+   
+   # For local development only:
+   # ANYTHINGLLM_BASE_URL=http://localhost:3001
+   
+   ANYTHINGLLM_API_KEY=your-api-key-here  # Optional, for secured instances
+   ```
+
+3. **Docker Compose Integration:**
+   If using Docker Compose, add AnythingLLM to your `docker-compose.yml`:
+   ```yaml
+   services:
+     anythingllm:
+       image: mintplexlabs/anythingllm
+       container_name: anythingllm
+       ports:
+         - "3001:3001"
+       volumes:
+         - anythingllm_storage:/app/server/storage
+         - anythingllm_logs:/app/server/logs
+       environment:
+         - LLM_PROVIDER=ollama
+         - OLLAMA_BASE_PATH=http://host.docker.internal:11434
+         - OLLAMA_MODEL_PREF=llama3.1
+         - EMBEDDING_ENGINE=ollama
+         - EMBEDDING_BASE_PATH=http://host.docker.internal:11434
+         - EMBEDDING_MODEL_PREF=nomic-embed-text
+       networks:
+         - jobsync_network
+   ```
+
+##### How It Works
+
+- When you paste a job URL in JobSync, it will first try to use AnythingLLM for intelligent extraction
+- If AnythingLLM is not configured or fails, it automatically falls back to HTML scraping
+- The AI parsing provides better accuracy for complex job postings and handles various job board formats
+- Confidence scoring helps determine the reliability of extracted information
+
+##### Testing the Integration
+
+Run the test script to verify your AnythingLLM connection:
+```bash
+node test-anythingllm.js
 ```
 
 ### Note ###

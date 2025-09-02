@@ -20,6 +20,8 @@ export const env = createEnv({
     NEXTAUTH_URL: z.string().url(),
     OPENAI_API_KEY: z.string().optional(),
     OLLAMA_BASE_URL: z.string().url().optional(),
+    ANYTHINGLLM_BASE_URL: z.string().url().optional(),
+    ANYTHINGLLM_API_KEY: z.string().optional(),
   },
 
   /**
@@ -44,6 +46,8 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
+    ANYTHINGLLM_BASE_URL: process.env.ANYTHINGLLM_BASE_URL,
+    ANYTHINGLLM_API_KEY: process.env.ANYTHINGLLM_API_KEY,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

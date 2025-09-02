@@ -84,7 +84,7 @@ export function Combobox({ options, field, creatable }: ComboboxProps) {
             variant="outline"
             role="combobox"
             className={cn(
-              "md:w-[240px] lg:w-[280px] justify-between capitalize",
+              "w-full justify-between capitalize",
               !field.value && "text-muted-foreground"
             )}
           >
@@ -100,7 +100,7 @@ export function Combobox({ options, field, creatable }: ComboboxProps) {
           </Button>
         </FormControl>
       </PopoverTrigger>
-      <PopoverContent className="md:w-[240px] lg:w-[280px] p-0">
+      <PopoverContent className="w-full p-0">
         <Command
           filter={(value, search) =>
             value.includes(search.toLowerCase()) ? 1 : 0

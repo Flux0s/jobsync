@@ -7,8 +7,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { addJob, updateJob } from "@/actions/job.actions";
-import { Loader, PlusCircle } from "lucide-react";
+import { addJob, updateJob, createLocation } from "@/actions/job.actions";
+import { addCompany } from "@/actions/company.actions";
+import { createJobTitle } from "@/actions/jobtitle.actions";
+import { Loader, PlusCircle, Link, Sparkles, Bot } from "lucide-react";
 import { Button } from "../ui/button";
 import { useForm } from "react-hook-form";
 import { useCallback, useEffect, useState, useTransition } from "react";
@@ -59,9 +61,9 @@ type AddJobProps = {
 
 export function AddJob({
   jobStatuses,
-  companies,
-  jobTitles,
-  locations,
+  companies: initialCompanies,
+  jobTitles: initialJobTitles,
+  locations: initialLocations,
   jobSources,
   editJob,
   resetEditJob,
@@ -70,6 +72,28 @@ export function AddJob({
   const [resumeDialogOpen, setResumeDialogOpen] = useState(false);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isPending, startTransition] = useTransition();
+  const [isParsingUrl, setIsParsingUrl] = useState(false);
+  const [parsedData, setParsedData] = useState<any>(null);
+  const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set());
+  
+  // Local state for dynamic data that can be updated
+  const [companies, setCompanies] = useState(initialCompanies);
+  const [jobTitles, setJobTitles] = useState(initialJobTitles);
+  const [locations, setLocations] = useState(initialLocations);
+
+  // Update local state when props change
+  useEffect(() => {
+    setCompanies(initialCompanies);
+  }, [initialCompanies]);
+
+  useEffect(() => {
+    setJobTitles(initialJobTitles);
+  }, [initialJobTitles]);
+
+  useEffect(() => {
+    setLocations(initialLocations);
+  }, [initialLocations]);
+
   const form = useForm<z.infer<typeof AddJobFormSchema>>({
     resolver: zodResolver(AddJobFormSchema),
     defaultValues: {
@@ -80,9 +104,10 @@ export function AddJob({
     },
   });
 
-  const { setValue, reset, watch, resetField } = form;
+  const { setValue, reset, watch, resetField, getValues } = form;
 
   const appliedValue = watch("applied");
+  const jobUrlValue = watch("jobUrl");
 
   const loadResumes = useCallback(async () => {
     try {
@@ -158,6 +183,8 @@ export function AddJob({
   const addJobForm = () => {
     reset();
     resetEditJob();
+    setAutoFilledFields(new Set());
+    setParsedData(null);
     setDialogOpen(true);
   };
 
@@ -172,10 +199,191 @@ export function AddJob({
     }
   };
 
-  const closeDialog = () => setDialogOpen(false);
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setAutoFilledFields(new Set());
+    setParsedData(null);
+  };
 
   const createResume = () => {
     setResumeDialogOpen(true);
+  };
+
+  // Helper component for auto-filled field indicator
+  const AutoFilledBadge = ({ fieldName }: { fieldName: string }) => {
+    if (!autoFilledFields.has(fieldName)) return null;
+    return (
+      <div className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+        <Bot className="h-3 w-3" />
+        <span>Auto-filled</span>
+      </div>
+    );
+  };
+
+  const parseJobUrl = async () => {
+    const url = getValues("jobUrl");
+    if (!url) {
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: "Please enter a job URL first",
+      });
+      return;
+    }
+
+    setIsParsingUrl(true);
+    try {
+      const response = await fetch("/api/parse-job-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setParsedData(result.data);
+        console.log("AI Parsing Result:", result.data); // Debug log
+        const filledFields = new Set<string>();
+        
+        // Auto-fill form fields if data was parsed successfully
+        // We'll create new entries for non-existing values and then set the IDs
+        
+        if (result.data.title) {
+          const existingTitle = jobTitles.find(jt => 
+            jt.value.toLowerCase() === result.data.title.toLowerCase() ||
+            jt.label.toLowerCase() === result.data.title.toLowerCase()
+          );
+          if (existingTitle) {
+            setValue("title", existingTitle.id);
+            filledFields.add("title");
+          } else {
+            // Create new job title and add it to the list
+            try {
+              const newTitle = await createJobTitle(result.data.title);
+              if (newTitle) {
+                setJobTitles(prev => [newTitle, ...prev]);
+                setValue("title", newTitle.id);
+                filledFields.add("title");
+              }
+            } catch (error) {
+              console.log('Failed to create job title:', error);
+            }
+          }
+        }
+        
+        if (result.data.company) {
+          const existingCompany = companies.find(c => 
+            c.value.toLowerCase() === result.data.company.toLowerCase() ||
+            c.label.toLowerCase() === result.data.company.toLowerCase()
+          );
+          if (existingCompany) {
+            setValue("company", existingCompany.id);
+            filledFields.add("company");
+          } else {
+            try {
+              const res = await addCompany({ company: result.data.company });
+              if (res.data) {
+                setCompanies(prev => [res.data, ...prev]);
+                setValue("company", res.data.id);
+                filledFields.add("company");
+              }
+            } catch (error) {
+              console.log('Failed to create company:', error);
+            }
+          }
+        }
+        
+        if (result.data.location) {
+          const existingLocation = locations.find(l => 
+            l.value.toLowerCase() === result.data.location.toLowerCase() ||
+            l.label.toLowerCase() === result.data.location.toLowerCase()
+          );
+          if (existingLocation) {
+            setValue("location", existingLocation.id);
+            filledFields.add("location");
+          } else {
+            try {
+              const { data, success } = await createLocation(result.data.location);
+              if (success && data) {
+                setLocations(prev => [data, ...prev]);
+                setValue("location", data.id);
+                filledFields.add("location");
+              }
+            } catch (error) {
+              console.log('Failed to create location:', error);
+            }
+          }
+        }
+        
+        if (result.data.description) {
+          console.log("Setting job description:", result.data.description);
+          setValue("jobDescription", result.data.description);
+          filledFields.add("jobDescription");
+        } else {
+          console.log("No description found in result.data");
+        }
+        
+        if (result.data.salary) {
+          // Try to map salary to existing ranges or use a default
+          const salaryNum = parseInt(result.data.salary.replace(/[^0-9]/g, ''));
+          let salaryRangeId = "1"; // Default
+          
+          if (salaryNum >= 200000) salaryRangeId = "10";
+          else if (salaryNum >= 150000) salaryRangeId = "9";
+          else if (salaryNum >= 120000) salaryRangeId = "8";
+          else if (salaryNum >= 100000) salaryRangeId = "7";
+          else if (salaryNum >= 80000) salaryRangeId = "6";
+          else if (salaryNum >= 60000) salaryRangeId = "5";
+          else if (salaryNum >= 50000) salaryRangeId = "4";
+          else if (salaryNum >= 40000) salaryRangeId = "3";
+          else if (salaryNum >= 30000) salaryRangeId = "2";
+          
+          setValue("salaryRange", salaryRangeId);
+          filledFields.add("salaryRange");
+        }
+        
+        if (result.data.jobType) {
+          const typeMapping: { [key: string]: string } = {
+            'fulltime': 'FT',
+            'parttime': 'PT', 
+            'contract': 'C',
+            'temporary': 'C',
+            'internship': 'PT',
+          };
+          const mappedType = typeMapping[result.data.jobType] || 'FT';
+          setValue("type", mappedType);
+          filledFields.add("type");
+        }
+        
+        setAutoFilledFields(filledFields);
+        
+        console.log("All filled fields:", Array.from(filledFields));
+        console.log("Current form values after parsing:", getValues());
+        
+        toast({
+          title: "Success!",
+          description: `Job data parsed successfully! Filled ${filledFields.size} fields.`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Parsing Failed",
+          description: result.error || "Could not extract job information from this URL",
+        });
+      }
+    } catch (error) {
+      console.error("URL parsing error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error!",
+        description: "Failed to parse job URL. Please try again.",
+      });
+    } finally {
+      setIsParsingUrl(false);
+    }
   };
 
   return (
@@ -213,13 +421,35 @@ export function AddJob({
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
                         <FormLabel>Job URL</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Copy and paste job link here"
-                            {...field}
-                          />
-                        </FormControl>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              placeholder="Copy and paste job link here"
+                              {...field}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={parseJobUrl}
+                            disabled={!jobUrlValue || isParsingUrl}
+                            className="shrink-0"
+                          >
+                            {isParsingUrl ? (
+                              <Loader className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4" />
+                            )}
+                            {isParsingUrl ? "Parsing..." : "Parse"}
+                          </Button>
+                        </div>
                         <FormMessage />
+                        {parsedData && (
+                          <div className="text-xs text-muted-foreground">
+                            ✓ Parsed with {Math.round(parsedData.confidence * 100)}% confidence from {parsedData.source}
+                          </div>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -232,13 +462,18 @@ export function AddJob({
                     name="title"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Job Title</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Job Title</FormLabel>
+                          <AutoFilledBadge fieldName="title" />
+                        </div>
                         <FormControl>
-                          <Combobox
-                            options={jobTitles}
-                            field={field}
-                            creatable
-                          />
+                          <div className={autoFilledFields.has("title") ? "ring-2 ring-blue-200 rounded-md" : ""}>
+                            <Combobox
+                              options={jobTitles}
+                              field={field}
+                              creatable
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -252,13 +487,18 @@ export function AddJob({
                     name="company"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Company</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Company</FormLabel>
+                          <AutoFilledBadge fieldName="company" />
+                        </div>
                         <FormControl>
-                          <Combobox
-                            options={companies}
-                            field={field}
-                            creatable
-                          />
+                          <div className={autoFilledFields.has("company") ? "ring-2 ring-blue-200 rounded-md" : ""}>
+                            <Combobox
+                              options={companies}
+                              field={field}
+                              creatable
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -272,13 +512,18 @@ export function AddJob({
                     name="location"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Job Location</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Job Location</FormLabel>
+                          <AutoFilledBadge fieldName="location" />
+                        </div>
                         <FormControl>
-                          <Combobox
-                            options={locations}
-                            field={field}
-                            creatable
-                          />
+                          <div className={autoFilledFields.has("location") ? "ring-2 ring-blue-200 rounded-md" : ""}>
+                            <Combobox
+                              options={locations}
+                              field={field}
+                              creatable
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -292,27 +537,32 @@ export function AddJob({
                     name="type"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel className="mb-2">Job Type</FormLabel>
-                        <RadioGroup
-                          name="type"
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="flex space-y-1"
-                        >
-                          {Object.entries(JOB_TYPES).map(([key, value]) => (
-                            <FormItem
-                              key={key}
-                              className="flex items-center space-x-3 space-y-0"
-                            >
-                              <FormControl>
-                                <RadioGroupItem value={key} />
-                              </FormControl>
-                              <FormLabel className="font-normal">
-                                {value}
-                              </FormLabel>
-                            </FormItem>
-                          ))}
-                        </RadioGroup>
+                        <div className="flex items-center justify-between mb-2">
+                          <FormLabel>Job Type</FormLabel>
+                          <AutoFilledBadge fieldName="type" />
+                        </div>
+                        <div className={autoFilledFields.has("type") ? "ring-2 ring-blue-200 rounded-md p-2" : ""}>
+                          <RadioGroup
+                            name="type"
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex space-y-1"
+                          >
+                            {Object.entries(JOB_TYPES).map(([key, value]) => (
+                              <FormItem
+                                key={key}
+                                className="flex items-center space-x-3 space-y-0"
+                              >
+                                <FormControl>
+                                  <RadioGroupItem value={key} />
+                                </FormControl>
+                                <FormLabel className="font-normal">
+                                  {value}
+                                </FormLabel>
+                              </FormItem>
+                            ))}
+                          </RadioGroup>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -428,13 +678,18 @@ export function AddJob({
                     name="salaryRange"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Salary Range</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Salary Range</FormLabel>
+                          <AutoFilledBadge fieldName="salaryRange" />
+                        </div>
                         <FormControl>
-                          <SelectFormCtrl
-                            label="Salary Range"
-                            options={SALARY_RANGES}
-                            field={field}
-                          />
+                          <div className={autoFilledFields.has("salaryRange") ? "ring-2 ring-blue-200 rounded-md" : ""}>
+                            <SelectFormCtrl
+                              label="Salary Range"
+                              options={SALARY_RANGES}
+                              field={field}
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -459,7 +714,7 @@ export function AddJob({
                       </FormItem>
                     )}
                   />
-                  <Button variant="link" type="button" onClick={createResume}>
+                  <Button variant="link" type="button" onClick={createResume} className="w-full">
                     Add New
                   </Button>
                   <CreateResume
@@ -477,11 +732,16 @@ export function AddJob({
                     name="jobDescription"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel id="job-description-label">
-                          Job Description
-                        </FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel id="job-description-label">
+                            Job Description
+                          </FormLabel>
+                          <AutoFilledBadge fieldName="jobDescription" />
+                        </div>
                         <FormControl>
-                          <TiptapEditor field={field} />
+                          <div className={autoFilledFields.has("jobDescription") ? "ring-2 ring-blue-200 rounded-md" : ""}>
+                            <TiptapEditor field={field} />
+                          </div>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -502,7 +762,7 @@ export function AddJob({
                         Cancel
                       </Button>
                     </div>
-                    <Button type="submit" data-testid="save-job-btn">
+                    <Button type="submit" data-testid="save-job-btn" className="w-full">
                       Save
                       {isPending && (
                         <Loader className="h-4 w-4 shrink-0 spinner" />
